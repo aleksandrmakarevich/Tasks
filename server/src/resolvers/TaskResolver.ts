@@ -49,4 +49,23 @@ export class TaskResolver {
         Object.assign(task, data)
         return await task.save()
     }
+
+    @Mutation(() => [Task])
+    async deleteCompletedTasks() {
+        try {
+            const task = await Task.getRepository().query("SELECT * FROM task WHERE isCompleted = 1")
+            await Task.getRepository().query("DELETE FROM task WHERE isCompleted = 1")
+            return task
+        } catch (err: any) {
+            throw new Error("Error deleting completed tasks: " + err.message)
+        }
+    }
+
+    @Mutation(() => [Task])
+    async insertManyTasks(
+        @Arg("tasks", () => [CreateTaskInput]) tasksData: CreateTaskInput[]
+    ) {
+        const tasks = tasksData.map(data => Task.create({...data}))
+        return await Task.save(tasks)
+    }
 }
