@@ -3,7 +3,9 @@ import {ApolloServer} from "apollo-server";
 import {buildSchema} from "type-graphql";
 import {DataSource} from "typeorm";
 import {Task} from "./entities/Task";
-import {TaskResolver} from "./resolvers/TaskResolver"; // Файл, который мы создали шагом ранее
+import {TaskResolver} from "./resolvers/TaskResolver";
+import {User} from "./entities/User";
+import {UserResolver} from "./resolvers/UserResolver"; // Файл, который мы создали шагом ранее
 
 async function main() {
     // 1. Настройка базы данных (TypeORM)
@@ -12,7 +14,7 @@ async function main() {
         database: "database.sqlite",
         synchronize: true, // Автоматически создает таблицы (только для разработки!)
         logging: true,
-        entities: [Task],
+        entities: [Task, User],
     });
 
     await AppDataSource.initialize()
@@ -23,7 +25,7 @@ async function main() {
     // Нам нужен хотя бы один Resolver, чтобы сервер запустился.
     // Пока сделаем "заглушку" прямо здесь.
     const schema = await buildSchema({
-        resolvers: [TaskResolver],
+        resolvers: [TaskResolver, UserResolver],
         validate: false,
     });
 

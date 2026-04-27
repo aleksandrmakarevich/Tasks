@@ -62,6 +62,12 @@ export class TaskResolver {
     }
 
     @Mutation(() => [Task])
+    async deleteAllTasks() {
+        await Task.getRepository().clear();
+        console.log("🗑️ All tasks deleted from database");
+    }
+
+    @Mutation(() => [Task])
     async insertManyTasks(
         @Arg("tasks", () => [CreateTaskInput]) tasksData: CreateTaskInput[]
     ) {

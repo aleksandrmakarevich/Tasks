@@ -1,11 +1,11 @@
 import {Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne} from "typeorm";
-import { ObjectType, Field, ID } from "type-graphql";
+import {ObjectType, Field, ID, Int} from "type-graphql";
 import {User} from "./User";
 
 @ObjectType() // Помечаем как тип GraphQL
 @Entity()     // Помечаем как таблицу базы данных
 export class Task extends BaseEntity {
-    @Field(() => ID)
+    @Field(() => Int)
     @PrimaryGeneratedColumn()
     id: number;
 
