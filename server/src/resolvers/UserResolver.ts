@@ -1,4 +1,4 @@
-import {Arg, Args, Mutation, Query, Resolver} from "type-graphql";
+import {Arg, Mutation, Query, Resolver} from "type-graphql";
 import {User} from "../entities/User";
 import {CreateTaskInput} from "../inputs/CreateTaskInput";
 import {Task} from "../entities/Task";
