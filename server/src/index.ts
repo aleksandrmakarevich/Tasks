@@ -4,6 +4,7 @@ import {buildSchema, AuthChecker} from "type-graphql";
 import {TaskResolver} from "./resolvers/TaskResolver";
 import {UserResolver} from "./resolvers/UserResolver";
 import {AppDataSource} from "./data-source";
+import {initSocket} from "./socket";
 import "dotenv/config";
 import { verify } from "jsonwebtoken";
 
@@ -44,7 +45,8 @@ async function main() {
         },
     });
 
-    const {url} = await server.listen(4000);
+    const { url, server: httpServer } = await server.listen(4000);
+    initSocket(httpServer);
     console.log(`🚀 Server ready at ${url}`);
 }
 

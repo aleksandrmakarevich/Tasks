@@ -4,6 +4,7 @@ import {CreateTaskInput} from "../inputs/CreateTaskInput";
 import {UpdateTaskInput} from "../inputs/UpdateTaskInput";
 import {FilterTaskArgs} from "../inputs/FilterTaskArgs";
 import {MyContext} from "../index";
+import {getIO} from "../socket";
 
 @Resolver()
 export class TaskResolver {
@@ -47,7 +48,9 @@ export class TaskResolver {
         });
 
         await task.save();
-        return Task.findOne({where: {id: task.id}, relations: {author: true}});
+        const result = await Task.findOne({where: {id: task.id}, relations: {author: true}});
+        getIO().emit("task:created", result);
+        return result;
     }
 
     @Mutation(() => Task, {nullable: true})
@@ -61,7 +64,9 @@ export class TaskResolver {
         if (!task) throw new Error("Task not found")
         Object.assign(task, data)
         await task.save()
-        return Task.findOne({ where: { id: task.id }, relations: { author: true } })
+        const result = await Task.findOne({ where: { id: task.id }, relations: { author: true } });
+        getIO().emit("task:updated", result);
+        return result;
     }
 
     @Mutation(() => [Task])
@@ -73,6 +78,7 @@ export class TaskResolver {
         })
         const snapshot = tasks.map(t => ({ ...t })) as Task[]
         await Task.remove(tasks)
+        getIO().emit("task:deleted", { ids: snapshot.map(t => t.id) });
         return snapshot
     }
 
@@ -80,6 +86,7 @@ export class TaskResolver {
     @Authorized()
     async deleteAllTasks(@Ctx() { userId }: MyContext) {
         await Task.delete({ authorId: userId });
+        getIO().emit("task:deleted", { all: true, userId });
         return true;
     }
 
@@ -91,6 +98,8 @@ export class TaskResolver {
     ) {
         const tasks = tasksData.map(data => Task.create({...data, authorId: userId}))
         const saved = await Task.save(tasks)
-        return Task.find({ where: saved.map(t => ({ id: t.id })), relations: { author: true } })
+        const result = await Task.find({ where: saved.map(t => ({ id: t.id })), relations: { author: true } });
+        getIO().emit("task:created", result);
+        return result;
     }
 }
