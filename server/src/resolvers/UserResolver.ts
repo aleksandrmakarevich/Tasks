@@ -3,6 +3,10 @@ import {User} from "../entities/User";
 import {CreateTaskInput} from "../inputs/CreateTaskInput";
 import {Task} from "../entities/Task";
 import {redis} from "../redis";
+import {compare} from "bcryptjs";
+import {sign} from "jsonwebtoken";
+import {LoginResponse} from "../outputs/LoginResponse";
+import {AppDataSource} from "../data-source";
 
 @Resolver()
 export class UserResolver {
@@ -25,24 +29,15 @@ export class UserResolver {
     async registerUserWithTasks(
         @Arg("login") login: string,
         @Arg("email") email: string,
+        @Arg("password") password: string,
         @Arg("tasks", () => [CreateTaskInput]) tasksData: CreateTaskInput[]
     ) {
-        return await User.getRepository().manager.transaction(async (manager) => {
+        return await AppDataSource.manager.transaction(async (manager) => {
 
-            const user = manager.create(User, {login, email})
+            const user = manager.create(User, {login, email, password})
             await manager.save(user)
 
             const tasks = tasksData.map(data => manager.create(Task, {...data, author: user}))
-
-            const savedTasks = await manager.save(tasks)
-
-            // Собираем "идеальный" объект для GraphQL
-            // user.tasks = savedTasks.map((savedTask, index) => {
-            //     return {
-            //         ...savedTask,          // тут есть ID
-            //         ...tasksData[index]    // тут есть title, description, comment
-            //     } as Task;
-            // });
 
             const finalUser = await manager.findOne(User, {
                 where: { id: user.id },
@@ -58,9 +53,33 @@ export class UserResolver {
                 });
             }
 
-            console.log("DEBUG - User Tasks:", JSON.stringify(finalUser, null, 2));
+            // console.log("DEBUG - User Tasks:", JSON.stringify(finalUser, null, 2));
             return finalUser;
         })
+    }
+
+    @Mutation(() => LoginResponse)
+    async login(
+        @Arg("login") login: string,
+        @Arg("password") password: string
+    ) {
+        const user = await User.findOne({
+            where: {login: login},
+            relations: { tasks: true }
+        })
+        if (!user || !(await compare(password, user.password))) {
+            throw new Error("Incorrect login or password")
+        }
+        //token
+        const token = sign(
+            { userId: user.id },
+            process.env.JWT_SECRET || "default_secret", // Берем секрет из .env
+            { expiresIn: "1d" } // Токен будет жить 1 день
+        )
+        return {
+            token,
+            user
+        };
     }
 
     @Mutation(() => [User])

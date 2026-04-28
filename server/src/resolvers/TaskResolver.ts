@@ -1,23 +1,31 @@
-import {Arg, Args, Mutation, Query, Resolver} from "type-graphql";
+import {Arg, Args, Authorized, Ctx, Mutation, Query, Resolver} from "type-graphql";
 import {Task} from "../entities/Task";
 import {CreateTaskInput} from "../inputs/CreateTaskInput";
 import {UpdateTaskInput} from "../inputs/UpdateTaskInput";
 import {FilterTaskArgs} from "../inputs/FilterTaskArgs";
+import {MyContext} from "../index";
 
 @Resolver()
 export class TaskResolver {
     @Query(() => [Task])
-    async getTasks() {
-        return await Task.find(); // Просто вернет все задачи из базы
+    @Authorized()
+    async getTasks(
+        @Ctx() {userId}: MyContext
+    ) {
+        return await Task.find({ where: { authorId: userId }, relations: { author: true } });
     }
 
     @Query(() => [Task])
+    @Authorized()
     async getTasksFiltered(
-        @Args() {search, isCompleted, sortBy}: FilterTaskArgs
+        @Args() {search, isCompleted, sortBy}: FilterTaskArgs,
+        @Ctx() {userId}: MyContext
     ) {
         const query = Task.createQueryBuilder("task")
+            .leftJoinAndSelect("task.author", "author")
+            .where("task.authorId = :userId", {userId})
         if (search) {
-            query.where("task.title LIKE :search", {search: `%${search}%`})
+            query.andWhere("task.title LIKE :search", {search: `%${search}%`})
         }
         if (isCompleted !== undefined) {
             query.andWhere("task.isCompleted = :isCompleted", {isCompleted})
@@ -27,51 +35,62 @@ export class TaskResolver {
     }
 
     @Mutation(() => Task)
+    @Authorized() // Теперь сюда пустят только с токеном
     async createTask(
-        @Arg("data") data: CreateTaskInput
+        @Arg("data") data: CreateTaskInput,
+        @Ctx() {userId}: MyContext // Извлекаем ID того, кто делает запрос
     ) {
         const task = Task.create({
             ...data,
-            isCompleted: false
-        })
+            isCompleted: false,
+            authorId: userId
+        });
 
-        await task.save()
-        return task
+        await task.save();
+        return Task.findOne({where: {id: task.id}, relations: {author: true}});
     }
 
     @Mutation(() => Task, {nullable: true})
+    @Authorized()
     async updateTask(
         @Arg("id") id: number,
-        @Arg("data") data: UpdateTaskInput
+        @Arg("data") data: UpdateTaskInput,
+        @Ctx() { userId }: MyContext
     ) {
-        const task = await Task.findOneBy({id})
-        if (!task) return null
+        const task = await Task.findOneBy({id, authorId: userId})
+        if (!task) throw new Error("Task not found")
         Object.assign(task, data)
-        return await task.save()
+        await task.save()
+        return Task.findOne({ where: { id: task.id }, relations: { author: true } })
     }
 
     @Mutation(() => [Task])
-    async deleteCompletedTasks() {
-        try {
-            const task = await Task.getRepository().query("SELECT * FROM task WHERE isCompleted = 1")
-            await Task.getRepository().query("DELETE FROM task WHERE isCompleted = 1")
-            return task
-        } catch (err: any) {
-            throw new Error("Error deleting completed tasks: " + err.message)
-        }
+    @Authorized()
+    async deleteCompletedTasks(@Ctx() { userId }: MyContext) {
+        const tasks = await Task.find({
+            where: { authorId: userId, isCompleted: true },
+            relations: { author: true }
+        })
+        const snapshot = tasks.map(t => ({ ...t })) as Task[]
+        await Task.remove(tasks)
+        return snapshot
+    }
+
+    @Mutation(() => Boolean)
+    @Authorized()
+    async deleteAllTasks(@Ctx() { userId }: MyContext) {
+        await Task.delete({ authorId: userId });
+        return true;
     }
 
     @Mutation(() => [Task])
-    async deleteAllTasks() {
-        await Task.getRepository().clear();
-        console.log("🗑️ All tasks deleted from database");
-    }
-
-    @Mutation(() => [Task])
+    @Authorized()
     async insertManyTasks(
-        @Arg("tasks", () => [CreateTaskInput]) tasksData: CreateTaskInput[]
+        @Arg("tasks", () => [CreateTaskInput]) tasksData: CreateTaskInput[],
+        @Ctx() { userId }: MyContext
     ) {
-        const tasks = tasksData.map(data => Task.create({...data}))
-        return await Task.save(tasks)
+        const tasks = tasksData.map(data => Task.create({...data, authorId: userId}))
+        const saved = await Task.save(tasks)
+        return Task.find({ where: saved.map(t => ({ id: t.id })), relations: { author: true } })
     }
 }

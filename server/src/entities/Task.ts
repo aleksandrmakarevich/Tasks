@@ -1,4 +1,4 @@
-import {Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne} from "typeorm";
+import {Entity, PrimaryGeneratedColumn, Column, BaseEntity, ManyToOne, JoinColumn} from "typeorm";
 import {ObjectType, Field, ID, Int} from "type-graphql";
 import {User} from "./User";
 
@@ -25,7 +25,11 @@ export class Task extends BaseEntity {
     @Column({ nullable: true })
     comment?: string;
 
+    @Column()
+    authorId: number
+
     @Field(() => User)
     @ManyToOne(() => User, (user) => user.tasks, { onDelete: "CASCADE" })
-    author: User
+    @JoinColumn({ name: "authorId" })
+    author: User;
 }
