@@ -18,7 +18,7 @@ export class User extends BaseEntity {
     @Column({ unique: true })
     email: string
 
-    @Field(() => Task)
+    @Field(() => [Task])
     @OneToMany(() => Task, (task) => task.author)
     tasks: Task[]
 }
